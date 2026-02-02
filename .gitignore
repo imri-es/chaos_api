@@ -1,0 +1,21 @@
+# Build and Release
+bin/
+obj/
+
+# Logs
+*.log
+
+# Visual Studio / VS Code
+.vscode/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Secrets
+appsettings.json
