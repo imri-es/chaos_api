@@ -21,9 +21,8 @@ namespace Backend.Models
         public DateTime? LastActivityTime { get; set; }
         public string? LastActivityType { get; set; }
 
-        // Use enum for Status
         [Required]
-        [Column(TypeName = "varchar(20)")] // store enum as string in PostgreSQL
+        [Column(TypeName = "varchar(20)")]
         public UserStatus Status { get; set; } = UserStatus.Unverified;
 
         public string? Position { get; set; }

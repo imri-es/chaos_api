@@ -16,5 +16,6 @@ namespace Backend.Models
         [Required]
         public string UserId { get; set; } = null!;
 
+        public string[]? ActionVictim { get; set; }
     }
 }

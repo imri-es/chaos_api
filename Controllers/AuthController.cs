@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Backend.Data;
 using Backend.DTOs;
 using Backend.Models;
 using Microsoft.AspNetCore.Identity;
@@ -38,18 +39,21 @@ namespace Backend.Controllers
         private readonly IConfiguration _configuration;
         private readonly IEmailSender _emailSender;
         private readonly ILogger<AuthController> _logger;
+        private readonly ApplicationDbContext _context;
 
         public AuthController(
             UserManager<ApplicationUser> userManager,
             IConfiguration configuration,
             IEmailSender emailSender,
-            ILogger<AuthController> logger
+            ILogger<AuthController> logger,
+            ApplicationDbContext context
         )
         {
             _userManager = userManager;
             _configuration = configuration;
             _emailSender = emailSender;
             _logger = logger;
+            _context = context;
         }
 
         [HttpPost("register")]
@@ -58,11 +62,11 @@ namespace Backend.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var existingUser = await _userManager.FindByEmailAsync(model.Email);
-            if (existingUser != null)
-            {
-                return BadRequest(new { Message = "User already exists" });
-            }
+            // var existingUser = await _userManager.FindByEmailAsync(model.Email);
+            // if (existingUser != null)
+            // {
+            //     return BadRequest(new { Message = "User already exists" });
+            // }
 
             var user = new ApplicationUser
             {
@@ -109,6 +113,10 @@ namespace Backend.Controllers
                         },
                     }
                 );
+            }
+            if (result.Errors.Any(e => e.Code == "DuplicateEmail"))
+            {
+                return BadRequest(new { Message = "User already exists" });
             }
 
             return BadRequest(result.Errors);
@@ -160,6 +168,17 @@ namespace Backend.Controllers
             user.LastLoginTime = DateTime.UtcNow;
             await _userManager.UpdateAsync(user);
 
+            // Log Login Action
+            var loginAction = new ActionHistory
+            {
+                Action = "Login",
+                Timestamp = DateTime.UtcNow,
+                UserId = user.Id,
+                ActionVictim = null,
+            };
+            _context.ActionHistory.Add(loginAction);
+            await _context.SaveChangesAsync();
+
             var token = GenerateJwtToken(user);
             return Ok(
                 new
@@ -173,6 +192,73 @@ namespace Backend.Controllers
                     },
                 }
             );
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto model)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var user = await _userManager.FindByEmailAsync(model.Email);
+            if (user == null)
+            {
+                // Don't reveal that the user does not exist
+                return Ok(
+                    new
+                    {
+                        Message = "If an account with that email exists, a password reset link has been sent.",
+                    }
+                );
+            }
+
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var frontendUrl = _configuration["FrontendUrl"] ?? "http://localhost:5173";
+
+            // Encode the token and email to ensure they are URL-safe
+            var encodedToken = Uri.EscapeDataString(token);
+            var encodedEmail = Uri.EscapeDataString(user.Email);
+
+            var resetLink =
+                $"{frontendUrl}/reset-password?token={encodedToken}&email={encodedEmail}";
+
+            await _emailSender.SendEmailAsync(
+                user.Email,
+                "Reset Password",
+                $"Please reset your password by <a href='{resetLink}'>clicking here</a>."
+            );
+
+            return Ok(
+                new
+                {
+                    Message = "If an account with that email exists, a password reset link has been sent.",
+                }
+            );
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto model)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var user = await _userManager.FindByEmailAsync(model.Email);
+            if (user == null)
+            {
+                return BadRequest(new { Message = "Invalid request" });
+            }
+
+            var result = await _userManager.ResetPasswordAsync(
+                user,
+                model.Token,
+                model.NewPassword
+            );
+            if (result.Succeeded)
+            {
+                return Ok(new { Message = "Password has been reset successfully." });
+            }
+
+            return BadRequest(result.Errors);
         }
 
         private string GenerateJwtToken(ApplicationUser user)

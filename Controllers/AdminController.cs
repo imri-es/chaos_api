@@ -11,11 +11,6 @@ namespace Backend.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    // In a real app, you'd want [Authorize(Roles = "Admin")] or similar.
-    // For this task, we'll assume any logged-in user can access or leave it open as requested,
-    // but typically "Admin Panel" implies some protection.
-    // I will add [Authorize] to ensure they are at least logged in, effectively making every user an admin for this sample,
-    // or I can leave it open if not specified. I'll add [Authorize] for basic security.
     [Authorize]
     [ServiceFilter(typeof(NotBlockedFilter))]
     public class AdminController : ControllerBase
@@ -93,15 +88,6 @@ namespace Backend.Controllers
         [HttpDelete("users/unverified")]
         public async Task<IActionResult> DeleteUnverifiedUsers()
         {
-            // Logic: Delete users who have NOT logged in and registered more than 24 hours ago (or just all who haven't logged in?)
-            // The prompt says "Delete all unverified". Usually this implies EmailConfirmed == false.
-            // Since I don't see EmailConfirmed explicitly used in previous context, I'll rely on a reasonable assumption or check available properties.
-            // However, the prompt might just mean "users who haven't logged in yet" or similar if email flow isn't fully enforced.
-            // Let's assume standard Identity "EmailConfirmed" flag is what "unverified" means.
-
-            // NOTE: _userManager.Users is an IQueryable of ApplicationUser
-            // Assuming ApplicationUser inherits IdentityUser, it has EmailConfirmed.
-
             var unverifiedUsers = await _userManager
                 .Users.Where(u => !u.EmailConfirmed)
                 .ToListAsync();
@@ -111,9 +97,27 @@ namespace Backend.Controllers
                 return Ok(new { Message = "No unverified users found" });
             }
 
+            var victimEmails = unverifiedUsers.Select(u => u.Email).ToArray();
+
             foreach (var user in unverifiedUsers)
             {
                 await _userManager.DeleteAsync(user);
+            }
+
+            // Log DeleteUnverified Action
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId != null)
+            {
+                _context.ActionHistory.Add(
+                    new ActionHistory
+                    {
+                        Action = "DeleteUnverified",
+                        Timestamp = DateTime.UtcNow,
+                        UserId = userId,
+                        ActionVictim = victimEmails,
+                    }
+                );
+                await _context.SaveChangesAsync();
             }
 
             return Ok(new { Message = $"Deleted {unverifiedUsers.Count} unverified users" });
@@ -126,13 +130,30 @@ namespace Backend.Controllers
             var users = await _userManager
                 .Users.Where(u => model.UserIds.Contains(u.Id))
                 .ToListAsync();
+
+            var victimEmails = new List<string>();
+
             foreach (var user in users)
             {
                 user.IsBlocked = true;
-                // Enforce sign-out logic here if using cookies, or just rely on the flag check in Login/Middleware
-                // For JWT, the token remains valid until expiry, but we can check the db on every request or short token lifetimes.
-                // In AuthController, IsBlocked is checked on Login.
+                victimEmails.Add(user.Email);
             }
+
+            // Log Block Action
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId != null && victimEmails.Any())
+            {
+                _context.ActionHistory.Add(
+                    new ActionHistory
+                    {
+                        Action = "Block",
+                        Timestamp = DateTime.UtcNow,
+                        UserId = userId,
+                        ActionVictim = victimEmails.ToArray(),
+                    }
+                );
+            }
+
             await _context.SaveChangesAsync();
             return Ok(new { Message = "Users blocked successfully" });
         }
@@ -143,10 +164,30 @@ namespace Backend.Controllers
             var users = await _userManager
                 .Users.Where(u => model.UserIds.Contains(u.Id))
                 .ToListAsync();
+
+            var victimEmails = new List<string>();
+
             foreach (var user in users)
             {
                 user.IsBlocked = false;
+                victimEmails.Add(user.Email);
             }
+
+            // Log Unblock Action
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId != null && victimEmails.Any())
+            {
+                _context.ActionHistory.Add(
+                    new ActionHistory
+                    {
+                        Action = "Unblock",
+                        Timestamp = DateTime.UtcNow,
+                        UserId = userId,
+                        ActionVictim = victimEmails.ToArray(),
+                    }
+                );
+            }
+
             await _context.SaveChangesAsync();
             return Ok(new { Message = "Users unblocked successfully" });
         }
@@ -157,11 +198,49 @@ namespace Backend.Controllers
             var users = await _userManager
                 .Users.Where(u => model.UserIds.Contains(u.Id))
                 .ToListAsync();
+
+            var victimEmails = new List<string>();
+
             foreach (var user in users)
             {
+                victimEmails.Add(user.Email);
                 await _userManager.DeleteAsync(user);
             }
+
+            // Log Delete Action
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId != null && victimEmails.Any())
+            {
+                _context.ActionHistory.Add(
+                    new ActionHistory
+                    {
+                        Action = "Delete",
+                        Timestamp = DateTime.UtcNow,
+                        UserId = userId,
+                        ActionVictim = victimEmails.ToArray(),
+                    }
+                );
+                await _context.SaveChangesAsync();
+            }
+
             return Ok(new { Message = "Users deleted successfully" });
+        }
+
+        [HttpGet("users/{userId}/history")]
+        public async Task<IActionResult> GetActionHistory(string userId)
+        {
+            var history = await _context
+                .ActionHistory.Where(h => h.UserId == userId)
+                .OrderByDescending(h => h.Timestamp)
+                .Select(h => new
+                {
+                    h.Action,
+                    h.Timestamp,
+                    h.ActionVictim,
+                })
+                .ToListAsync();
+
+            return Ok(history);
         }
     }
 }
