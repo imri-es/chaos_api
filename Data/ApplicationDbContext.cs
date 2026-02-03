@@ -23,7 +23,7 @@ namespace Backend.Data
             // composite index userid and timestamp
             builder.Entity<ActionHistory>().HasIndex(a => new { a.UserId, a.Timestamp });
 
-            // ActionVictim array mapping for PostgreSQL
+            // hz chto eto
             builder.Entity<ActionHistory>().Property(e => e.ActionVictim).HasColumnType("text[]");
         }
     }

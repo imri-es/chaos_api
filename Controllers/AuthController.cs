@@ -93,11 +93,19 @@ namespace Backend.Controllers
 
                 _logger.LogInformation($"Verification Link for {user.Email}: {confirmationLink}");
 
-                await _emailSender.SendEmailAsync(
-                    user.Email,
-                    "Confirm your email",
-                    $"Please confirm your account by <a href='{confirmationLink}'>clicking here</a>."
-                );
+                try
+                {
+                    await _emailSender.SendEmailAsync(
+                        user.Email,
+                        "Confirm your email",
+                        $"Please confirm your account by <a href='{confirmationLink}'>clicking here</a>."
+                    );
+                    _logger.LogInformation($"Email sent successfully to {user.Email}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Failed to send email to {user.Email}. Error: {ex.Message}");
+                }
 
                 var jwtToken = GenerateJwtToken(user);
                 return Ok(

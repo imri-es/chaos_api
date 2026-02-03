@@ -18,7 +18,7 @@ public class EmailSender : IEmailSender
         email.To.Add(MailboxAddress.Parse(toEmail));
         email.Subject = subject;
 
-        email.Body = new TextPart("html") { Text = body }; // use "plain" if you want plain text
+        email.Body = new TextPart("html") { Text = body }; 
 
         using var smtp = new SmtpClient();
         await smtp.ConnectAsync(
