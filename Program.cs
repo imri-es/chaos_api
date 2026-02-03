@@ -10,6 +10,7 @@ using Microsoft.IdentityModel.Tokens;
 DotNetEnv.Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
+var frontendUrl = Environment.GetEnvironmentVariable("FrontendUrl") ?? "http://localhost:5173";
 
 // cors
 builder.Services.AddCors(options =>
@@ -18,11 +19,7 @@ builder.Services.AddCors(options =>
         "Frontend",
         policy =>
         {
-            policy
-                .WithOrigins("http://localhost:5173")
-                .AllowAnyHeader()
-                .AllowAnyMethod()
-                .AllowCredentials();
+            policy.WithOrigins(frontendUrl).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
         }
     );
 });
