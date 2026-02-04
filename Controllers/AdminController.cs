@@ -37,7 +37,7 @@ namespace Backend.Controllers
         {
             var query = _userManager.Users.AsQueryable();
 
-            // Sorting
+            // sorting (can be improved)
             query = sortBy?.ToLower() switch
             {
                 "email" => sortOrder == "asc"
@@ -51,7 +51,7 @@ namespace Backend.Controllers
                     : query.OrderByDescending(u => u.RegistrationTime),
                 "status" => sortOrder == "asc"
                     ? query.OrderBy(u => u.IsBlocked)
-                    : query.OrderByDescending(u => u.IsBlocked), // Blocked (true) > Active (false) or vice versa
+                    : query.OrderByDescending(u => u.IsBlocked),
                 "isblocked" => sortOrder == "asc"
                     ? query.OrderBy(u => u.IsBlocked)
                     : query.OrderByDescending(u => u.IsBlocked),
@@ -61,7 +61,7 @@ namespace Backend.Controllers
                 "isemailconfirmed" => sortOrder == "asc"
                     ? query.OrderBy(u => u.EmailConfirmed)
                     : query.OrderByDescending(u => u.EmailConfirmed),
-                _ => query.OrderByDescending(u => u.RegistrationTime), // Default sort
+                _ => query.OrderByDescending(u => u.RegistrationTime), // default sort by registration time
             };
 
             var totalCount = await query.CountAsync();
@@ -104,7 +104,6 @@ namespace Backend.Controllers
                 await _userManager.DeleteAsync(user);
             }
 
-            // Log DeleteUnverified Action
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId != null)
             {
@@ -139,7 +138,6 @@ namespace Backend.Controllers
                 victimEmails.Add(user.Email);
             }
 
-            // Log Block Action
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId != null && victimEmails.Any())
             {
@@ -173,7 +171,6 @@ namespace Backend.Controllers
                 victimEmails.Add(user.Email);
             }
 
-            // Log Unblock Action
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId != null && victimEmails.Any())
             {
@@ -207,7 +204,6 @@ namespace Backend.Controllers
                 await _userManager.DeleteAsync(user);
             }
 
-            // Log Delete Action
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId != null && victimEmails.Any())
             {

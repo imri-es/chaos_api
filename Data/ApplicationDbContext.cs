@@ -1,7 +1,7 @@
 using Backend.Models;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-
+// db context, индексы
 namespace Backend.Data
 {
     public class ApplicationDbContext : IdentityDbContext<ApplicationUser>

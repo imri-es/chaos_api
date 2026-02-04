@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-
+// table for action history of each user actions
 namespace Backend.Models
 {
     public class ActionHistory

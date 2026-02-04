@@ -1,3 +1,4 @@
+// тоже дто
 namespace Backend.DTOs
 {
     public class UserDto

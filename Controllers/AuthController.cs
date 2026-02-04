@@ -10,29 +10,6 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Backend.Controllers
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class TestController : ControllerBase
-    {
-        private readonly IEmailSender _emailSender;
-
-        public TestController(IEmailSender emailSender)
-        {
-            _emailSender = emailSender;
-        }
-
-        [HttpPost("send-email")]
-        public async Task<IActionResult> SendEmail()
-        {
-            await _emailSender.SendEmailAsync(
-                "imran.mv@icloud.com",
-                "Hello!",
-                "<h1>This is a test email</h1>"
-            );
-            return Ok("Email sent!");
-        }
-    }
-
     public class AuthController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
@@ -56,17 +33,12 @@ namespace Backend.Controllers
             _context = context;
         }
 
+        // registration endpoint
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDto model)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
-
-            // var existingUser = await _userManager.FindByEmailAsync(model.Email);
-            // if (existingUser != null)
-            // {
-            //     return BadRequest(new { Message = "User already exists" });
-            // }
 
             var user = new ApplicationUser
             {
@@ -83,6 +55,7 @@ namespace Backend.Controllers
 
             if (result.Succeeded)
             {
+                // generate email confirmation token
                 var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
                 var confirmationLink = Url.Action(
                     nameof(VerifyEmail),
@@ -91,8 +64,10 @@ namespace Backend.Controllers
                     Request.Scheme
                 );
 
+                // log email
                 _logger.LogInformation($"Verification Link for {user.Email}: {confirmationLink}");
 
+                // try catch in order to not break the codde on email error
                 try
                 {
                     await _emailSender.SendEmailAsync(
@@ -122,6 +97,7 @@ namespace Backend.Controllers
                     }
                 );
             }
+            // if user already exists
             if (result.Errors.Any(e => e.Code == "DuplicateEmail"))
             {
                 return BadRequest(new { Message = "User already exists" });
@@ -130,6 +106,7 @@ namespace Backend.Controllers
             return BadRequest(result.Errors);
         }
 
+        // email verification endpoint, checks for email, searches for it and confirms it with code if valid
         [HttpGet("verify-email")]
         public async Task<IActionResult> VerifyEmail(string userId, string code)
         {
@@ -155,6 +132,7 @@ namespace Backend.Controllers
             return BadRequest("Error confirming your email.");
         }
 
+        // login endpoint, simple check for user and password
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto model)
         {
@@ -175,8 +153,7 @@ namespace Backend.Controllers
 
             user.LastLoginTime = DateTime.UtcNow;
             await _userManager.UpdateAsync(user);
-
-            // Log Login Action
+            // create login action for history
             var loginAction = new ActionHistory
             {
                 Action = "Login",
@@ -202,6 +179,7 @@ namespace Backend.Controllers
             );
         }
 
+        // forgot password endpoint, sends email with reset link
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto model)
         {
@@ -211,7 +189,6 @@ namespace Backend.Controllers
             var user = await _userManager.FindByEmailAsync(model.Email);
             if (user == null)
             {
-                // Don't reveal that the user does not exist
                 return Ok(
                     new
                     {
@@ -223,7 +200,6 @@ namespace Backend.Controllers
             var token = await _userManager.GeneratePasswordResetTokenAsync(user);
             var frontendUrl = _configuration["FrontendUrl"] ?? "http://localhost:5173";
 
-            // Encode the token and email to ensure they are URL-safe
             var encodedToken = Uri.EscapeDataString(token);
             var encodedEmail = Uri.EscapeDataString(user.Email);
 
@@ -244,6 +220,7 @@ namespace Backend.Controllers
             );
         }
 
+        // reset password endpoint, resets password if token and email are valid
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto model)
         {
