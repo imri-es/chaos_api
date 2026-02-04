@@ -1,33 +1,28 @@
-using MailKit.Net.Smtp;
-using Microsoft.Extensions.Options;
-using MimeKit;
+using System.Net.Http;
+using System.Net.Http.Json;
 
 public class EmailSender : IEmailSender
 {
-    private readonly EmailSettings _emailSettings;
+    private readonly HttpClient _httpClient;
 
-    public EmailSender(IOptions<EmailSettings> emailSettings)
+    public EmailSender(HttpClient httpClient)
     {
-        _emailSettings = emailSettings.Value;
+        _httpClient = httpClient;
     }
 
     public async Task SendEmailAsync(string toEmail, string subject, string body)
     {
-        var email = new MimeMessage();
-        email.From.Add(new MailboxAddress(_emailSettings.SenderName, _emailSettings.SenderEmail));
-        email.To.Add(MailboxAddress.Parse(toEmail));
-        email.Subject = subject;
+        var emailData = new
+        {
+            recipient = toEmail,
+            subject = subject,
+            content = body,
+        };
 
-        email.Body = new TextPart("html") { Text = body }; 
-
-        using var smtp = new SmtpClient();
-        await smtp.ConnectAsync(
-            _emailSettings.SmtpServer,
-            _emailSettings.Port,
-            _emailSettings.UseSsl
+        var response = await _httpClient.PostAsJsonAsync(
+            "http://94.131.85.239:3000/send-email",
+            emailData
         );
-        await smtp.AuthenticateAsync(_emailSettings.Username, _emailSettings.Password);
-        await smtp.SendAsync(email);
-        await smtp.DisconnectAsync(true);
+        response.EnsureSuccessStatusCode();
     }
 }

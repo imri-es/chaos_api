@@ -57,6 +57,7 @@ builder.Services.Configure<IdentityOptions>(options =>
 
 // отправка почты
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddHttpClient();
 builder.Services.AddTransient<IEmailSender, EmailSender>();
 
 // JWT токен
